@@ -402,6 +402,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Kredi kartlarinizi taramak icin kamerayi kullanmamiz gerekmektedir.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Kart bilgilerinize guvenli erisim saglamak icin Face ID dogrulamasi gereklidir.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Kartlara 3D hareket efekti uygulamak için kullanılır.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -436,6 +437,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Kredi kartlarinizi taramak icin kamerayi kullanmamiz gerekmektedir.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Kart bilgilerinize guvenli erisim saglamak icin Face ID dogrulamasi gereklidir.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Kartlara 3D hareket efekti uygulamak için kullanılır.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
