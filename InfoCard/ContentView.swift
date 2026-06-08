@@ -299,12 +299,8 @@ class MotionManager: ObservableObject {
     @Published var roll: Double = 0
     @Published var pitch: Double = 0
     
-    private var timeTracker: Double = 0.0
-    private var lastPhysicalRoll: Double = 0.0
-    private var lastPhysicalPitch: Double = 0.0
-    private var idleTime: Double = 0.0
-    private var isIdle: Bool = true
-    private var idleWeight: Double = 1.0
+    private var referenceRoll: Double? = nil
+    private var referencePitch: Double? = nil
     
     init() {
         manager.deviceMotionUpdateInterval = 1.0 / 60.0
@@ -316,57 +312,26 @@ class MotionManager: ObservableObject {
                 let currentRoll = data.attitude.roll
                 let currentPitch = data.attitude.pitch
                 
-                // Calculate movement delta to detect if device is stationary
-                let delta = abs(currentRoll - self.lastPhysicalRoll) + abs(currentPitch - self.lastPhysicalPitch)
-                self.lastPhysicalRoll = currentRoll
-                self.lastPhysicalPitch = currentPitch
-                
-                self.timeTracker += 1.0 / 60.0
-                
-                if delta < 0.003 {
-                    self.idleTime += 1.0 / 60.0
-                } else {
-                    self.idleTime = 0.0
-                    self.isIdle = false
+                // Initialize reference orientation on first update
+                if self.referenceRoll == nil {
+                    self.referenceRoll = currentRoll
+                    self.referencePitch = currentPitch
                 }
                 
-                // Trigger auto-sway if stationary for more than 1.5 seconds
-                if self.idleTime > 1.5 {
-                    self.isIdle = true
-                }
+                guard let refRoll = self.referenceRoll, let refPitch = self.referencePitch else { return }
                 
-                // Blend auto-sway weight smoothly (0.5s fade-in, 0.25s fade-out)
-                if self.isIdle {
-                    self.idleWeight = min(1.0, self.idleWeight + (1.0 / 60.0) * 2.0)
-                } else {
-                    self.idleWeight = max(0.0, self.idleWeight - (1.0 / 60.0) * 4.0)
-                }
+                // Calculate relative roll and pitch (starts at 0.0 when app opens)
+                let relativeRoll = currentRoll - refRoll
+                let relativePitch = currentPitch - refPitch
                 
-                // Gentle circular sway animation on a 5-second period
-                let autoRoll = sin(self.timeTracker * (2.0 * .pi / 5.0)) * 0.06
-                let autoPitch = cos(self.timeTracker * (2.0 * .pi / 5.0)) * 0.06
+                // Slowly leak reference to current position to auto-center over time
+                // (e.g. if the user changes how they hold the phone naturally)
+                self.referenceRoll = refRoll * 0.98 + currentRoll * 0.02
+                self.referencePitch = refPitch * 0.98 + currentPitch * 0.02
                 
-                let targetRoll = currentRoll + autoRoll * self.idleWeight
-                let targetPitch = currentPitch + autoPitch * self.idleWeight
-                
-                // Low-pass filter (halving velocity for smoothness)
-                self.roll = self.roll * 0.90 + targetRoll * 0.10
-                self.pitch = self.pitch * 0.90 + targetPitch * 0.10
-            }
-        } else {
-            // Simulator/fallback timer running at 60 FPS
-            Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-                guard let self = self else { return }
-                self.timeTracker += 1.0 / 60.0
-                
-                let targetRoll = sin(self.timeTracker * (2.0 * .pi / 5.0)) * 0.06
-                let targetPitch = cos(self.timeTracker * (2.0 * .pi / 5.0)) * 0.06
-                
-                // Apply a low-pass filter (velocity halved)
-                DispatchQueue.main.async {
-                    self.roll = self.roll * 0.90 + targetRoll * 0.10
-                    self.pitch = self.pitch * 0.90 + targetPitch * 0.10
-                }
+                // Apply a low-pass filter to smooth out fast jitters (velocity halved)
+                self.roll = self.roll * 0.90 + relativeRoll * 0.10
+                self.pitch = self.pitch * 0.90 + relativePitch * 0.10
             }
         }
     }
@@ -972,7 +937,7 @@ struct CardView: View {
     @State private var showFlash = false
     @State private var sheenOffsetMultiplier: CGFloat = -0.6
     
-    let maxTilt: Double = 18  // max degrees tilt
+    let maxTilt: Double = 6   // subtle max degrees tilt for premium parallax
     
     var cardColors: [Color] {
         if let hex = card.customColorHex {
@@ -1137,7 +1102,7 @@ struct CardView: View {
         )
         .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 6)
         .rotation3DEffect(
-            .degrees(motionManager.pitch * maxTilt),
+            .degrees(-motionManager.pitch * maxTilt),
             axis: (x: 1, y: 0, z: 0),
             perspective: 0.4
         )
