@@ -299,13 +299,75 @@ class MotionManager: ObservableObject {
     @Published var roll: Double = 0
     @Published var pitch: Double = 0
     
+    private var timeTracker: Double = 0.0
+    private var lastPhysicalRoll: Double = 0.0
+    private var lastPhysicalPitch: Double = 0.0
+    private var idleTime: Double = 0.0
+    private var isIdle: Bool = true
+    private var idleWeight: Double = 1.0
+    
     init() {
         manager.deviceMotionUpdateInterval = 1.0 / 60.0
-        guard manager.isDeviceMotionAvailable else { return }
-        manager.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
-            guard let data = data else { return }
-            self?.roll = data.attitude.roll
-            self?.pitch = data.attitude.pitch
+        
+        if manager.isDeviceMotionAvailable {
+            manager.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
+                guard let self = self, let data = data else { return }
+                
+                let currentRoll = data.attitude.roll
+                let currentPitch = data.attitude.pitch
+                
+                // Calculate movement delta to detect if device is stationary
+                let delta = abs(currentRoll - self.lastPhysicalRoll) + abs(currentPitch - self.lastPhysicalPitch)
+                self.lastPhysicalRoll = currentRoll
+                self.lastPhysicalPitch = currentPitch
+                
+                self.timeTracker += 1.0 / 60.0
+                
+                if delta < 0.003 {
+                    self.idleTime += 1.0 / 60.0
+                } else {
+                    self.idleTime = 0.0
+                    self.isIdle = false
+                }
+                
+                // Trigger auto-sway if stationary for more than 1.5 seconds
+                if self.idleTime > 1.5 {
+                    self.isIdle = true
+                }
+                
+                // Blend auto-sway weight smoothly (0.5s fade-in, 0.25s fade-out)
+                if self.isIdle {
+                    self.idleWeight = min(1.0, self.idleWeight + (1.0 / 60.0) * 2.0)
+                } else {
+                    self.idleWeight = max(0.0, self.idleWeight - (1.0 / 60.0) * 4.0)
+                }
+                
+                // Gentle circular sway animation on a 5-second period
+                let autoRoll = sin(self.timeTracker * (2.0 * .pi / 5.0)) * 0.06
+                let autoPitch = cos(self.timeTracker * (2.0 * .pi / 5.0)) * 0.06
+                
+                let targetRoll = currentRoll + autoRoll * self.idleWeight
+                let targetPitch = currentPitch + autoPitch * self.idleWeight
+                
+                // Low-pass filter (halving velocity for smoothness)
+                self.roll = self.roll * 0.90 + targetRoll * 0.10
+                self.pitch = self.pitch * 0.90 + targetPitch * 0.10
+            }
+        } else {
+            // Simulator/fallback timer running at 60 FPS
+            Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                self.timeTracker += 1.0 / 60.0
+                
+                let targetRoll = sin(self.timeTracker * (2.0 * .pi / 5.0)) * 0.06
+                let targetPitch = cos(self.timeTracker * (2.0 * .pi / 5.0)) * 0.06
+                
+                // Apply a low-pass filter (velocity halved)
+                DispatchQueue.main.async {
+                    self.roll = self.roll * 0.90 + targetRoll * 0.10
+                    self.pitch = self.pitch * 0.90 + targetPitch * 0.10
+                }
+            }
         }
     }
     
@@ -939,8 +1001,8 @@ struct CardView: View {
             
             // Card Decorations with gyroscopic parallax
             CardDecorations(offset: CGSize(width: -motionManager.roll * 12, height: -motionManager.pitch * 12))
-                .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.roll)
-                .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.pitch)
+                .animation(.interactiveSpring(response: 0.70, dampingFraction: 0.75), value: motionManager.roll)
+                .animation(.interactiveSpring(response: 0.70, dampingFraction: 0.75), value: motionManager.pitch)
             
             // Diagonal sweep sheen flash effect
             GeometryReader { geo in
@@ -1084,8 +1146,8 @@ struct CardView: View {
             axis: (x: 0, y: 1, z: 0),
             perspective: 0.4
         )
-        .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.pitch)
-        .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.roll)
+        .animation(.interactiveSpring(response: 0.70, dampingFraction: 0.75), value: motionManager.pitch)
+        .animation(.interactiveSpring(response: 0.70, dampingFraction: 0.75), value: motionManager.roll)
         .scaleEffect(isBouncing ? 1.045 : 1.0)
         .onTapGesture {
             if !isPreview, let onTap = onTap {
