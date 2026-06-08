@@ -178,9 +178,40 @@ class CardStore: ObservableObject {
     }
     
     private let storageKey = "wallet_cards_storage"
+    private var isSavingOrLoading = false
     
     init() {
         loadCards()
+        setupiCloudObserver()
+    }
+    
+    private func setupiCloudObserver() {
+        // Start iCloud synchronization on launch
+        NSUbiquitousKeyValueStore.default.synchronize()
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(iCloudKeysDidChange),
+            name: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: NSUbiquitousKeyValueStore.default
+        )
+    }
+    
+    @objc private func iCloudKeysDidChange(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reason = userInfo[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int else {
+            return
+        }
+        
+        // Reload cards if changes were made on the server or during initial sync
+        if reason == NSUbiquitousKeyValueStoreServerChange || reason == NSUbiquitousKeyValueStoreInitialSyncChange {
+            if let changedKeys = userInfo[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String],
+               changedKeys.contains(storageKey) {
+                DispatchQueue.main.async {
+                    self.loadCards()
+                }
+            }
+        }
     }
     
     func addCard(_ card: Card) {
@@ -200,17 +231,42 @@ class CardStore: ObservableObject {
     }
     
     private func saveCards() {
+        guard !isSavingOrLoading else { return }
+        isSavingOrLoading = true
+        defer { isSavingOrLoading = false }
+        
         if let encoded = try? JSONEncoder().encode(cards) {
+            // Save locally as a robust backup and cache
             UserDefaults.standard.set(encoded, forKey: storageKey)
+            
+            // Save to iCloud Key-Value store
+            NSUbiquitousKeyValueStore.default.set(encoded, forKey: storageKey)
+            NSUbiquitousKeyValueStore.default.synchronize()
         }
     }
     
     private func loadCards() {
+        guard !isSavingOrLoading else { return }
+        isSavingOrLoading = true
+        defer { isSavingOrLoading = false }
+        
+        // 1. Try to load from iCloud Key-Value store first
+        if let iCloudData = NSUbiquitousKeyValueStore.default.data(forKey: storageKey),
+           let decoded = try? JSONDecoder().decode([Card].self, from: iCloudData) {
+            // Sync local storage to match iCloud
+            if let encoded = try? JSONEncoder().encode(decoded) {
+                UserDefaults.standard.set(encoded, forKey: storageKey)
+            }
+            self.cards = decoded
+            return
+        }
+        
+        // 2. Fall back to local UserDefaults if iCloud data is not present or not configured
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([Card].self, from: data) {
             self.cards = decoded
         } else {
-            // Load initial mock cards with holder names and providers
+            // Load initial mock cards with holder names and providers if no data exists anywhere
             self.cards = [
                 Card(
                     name: "Bonus Gold",
