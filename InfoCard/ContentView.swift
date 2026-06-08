@@ -237,37 +237,6 @@ class CardStore: ObservableObject {
     }
 }
 
-// MARK: - App Custom Settings Enums
-enum AppThemeStyle: String, CaseIterable, Identifiable, Codable {
-    case modernGradient
-    case liquidGlass
-    
-    var id: String { rawValue }
-    
-    var displayName: String {
-        switch self {
-        case .modernGradient: return "Modern Gradyan"
-        case .liquidGlass: return "Akıcı Cam"
-        }
-    }
-}
-
-enum AppearanceMode: String, CaseIterable, Identifiable, Codable {
-    case system
-    case light
-    case dark
-    
-    var id: String { rawValue }
-    
-    var displayName: String {
-        switch self {
-        case .system: return "Sistem"
-        case .light: return "Açık"
-        case .dark: return "Koyu"
-        }
-    }
-}
-
 // MARK: - Motion Manager (Gyroscopic tracking)
 class MotionManager: ObservableObject {
     private let manager = CMMotionManager()
@@ -320,56 +289,11 @@ struct GlassButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Frosted Label Container
-struct FrostedLabel<Content: View>: View {
-    let cornerRadius: CGFloat
-    let horizontalPadding: CGFloat
-    let verticalPadding: CGFloat
-    let material: Material
-    let borderColor: Color
-    let borderWidth: CGFloat
-    let content: Content
-    
-    init(
-        cornerRadius: CGFloat = 10,
-        horizontalPadding: CGFloat = 10,
-        verticalPadding: CGFloat = 5,
-        material: Material = .ultraThinMaterial,
-        borderColor: Color = Color.white.opacity(0.25),
-        borderWidth: CGFloat = 0.5,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.cornerRadius = cornerRadius
-        self.horizontalPadding = horizontalPadding
-        self.verticalPadding = verticalPadding
-        self.material = material
-        self.borderColor = borderColor
-        self.borderWidth = borderWidth
-        self.content = content()
-    }
-    
-    var body: some View {
-        content
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, verticalPadding)
-            .background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(material)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .stroke(borderColor, lineWidth: borderWidth)
-                    )
-                    .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-            }
-    }
-}
-
 // MARK: - Settings Sheet Component
 struct SettingsSheet: View {
     @Environment(\.dismiss) var dismiss
-    @AppStorage("app_theme_style") private var themeStyle: AppThemeStyle = .modernGradient
-    @AppStorage("appearance_mode") private var appearanceMode: AppearanceMode = .dark
-    @AppStorage("use_biometrics") private var useBiometrics: Bool = true
+    @AppStorage("is_dark_mode") private var isDarkMode = true
+    @AppStorage("use_biometrics") private var useBiometrics = true
     
     var body: some View {
         NavigationStack {
@@ -386,37 +310,23 @@ struct SettingsSheet: View {
                 
                 Form {
                     Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Tema Stili")
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.8))
-                            
-                            Picker("Tema Stili", selection: $themeStyle) {
-                                ForEach(AppThemeStyle.allCases) { style in
-                                    Text(style.displayName).tag(style)
+                        Toggle(isOn: $isDarkMode) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "paintpalette.fill")
+                                    .foregroundColor(.white.opacity(0.7))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Koyu Tema")
+                                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.white)
+                                    Text("Arayüzü koyu mod veya açık moda ayarlar.")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.white.opacity(0.45))
                                 }
                             }
-                            .pickerStyle(.segmented)
                         }
-                        .padding(.vertical, 4)
-                        .listRowBackground(Color.white.opacity(0.05))
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Görünüm Modu")
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.8))
-                            
-                            Picker("Görünüm Modu", selection: $appearanceMode) {
-                                ForEach(AppearanceMode.allCases) { mode in
-                                    Text(mode.displayName).tag(mode)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                        }
-                        .padding(.vertical, 4)
                         .listRowBackground(Color.white.opacity(0.05))
                     } header: {
-                        Text("Görünüm & Arayüz")
+                        Text("Görünüm")
                             .foregroundColor(.white.opacity(0.4))
                             .font(.system(size: 11, weight: .bold))
                             .tracking(1.0)
@@ -451,7 +361,7 @@ struct SettingsSheet: View {
                                 .font(.system(size: 14, design: .rounded))
                                 .foregroundColor(.white.opacity(0.7))
                             Spacer()
-                            Text("1.0.0 (Liquid Glass)")
+                            Text("1.0.0")
                                 .font(.system(size: 14, design: .rounded))
                                 .foregroundColor(.white.opacity(0.4))
                         }
@@ -489,9 +399,8 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     
     // Persistent App Settings
-    @AppStorage("app_theme_style") private var themeStyle: AppThemeStyle = .modernGradient
-    @AppStorage("appearance_mode") private var appearanceMode: AppearanceMode = .dark
-    @AppStorage("use_biometrics") private var useBiometrics: Bool = true
+    @AppStorage("is_dark_mode") private var isDarkMode = true
+    @AppStorage("use_biometrics") private var useBiometrics = true
     
     // CoreMotion gyroscopic tracker
     @StateObject private var motionManager = MotionManager()
@@ -519,45 +428,8 @@ struct ContentView: View {
     @State private var toastMessage = ""
     @State private var toastTimer: Timer? = nil
     
-    // Computes dynamic light/dark mode preference
-    var preferredColorScheme: ColorScheme? {
-        switch appearanceMode {
-        case .system: return nil
-        case .light: return .light
-        case .dark: return .dark
-        }
-    }
-    
     var body: some View {
         ZStack {
-            // Root background selector
-            if themeStyle == .liquidGlass {
-                Image("WalletBackground")
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
-            } else {
-                Color(hex: "0A0A0C")
-                    .ignoresSafeArea()
-                
-                GeometryReader { geo in
-                    ZStack {
-                        Circle()
-                            .fill(Color(hex: "6D28D9").opacity(0.12))
-                            .frame(width: 320, height: 320)
-                            .blur(radius: 80)
-                            .offset(x: -80, y: 120)
-                        
-                        Circle()
-                            .fill(Color(hex: "028090").opacity(0.1))
-                            .frame(width: 380, height: 380)
-                            .blur(radius: 90)
-                            .offset(x: geo.size.width - 200, y: geo.size.height - 350)
-                    }
-                }
-                .ignoresSafeArea()
-            }
-            
             if isUnlocked {
                 mainWalletView
                     .transition(.opacity)
@@ -583,16 +455,38 @@ struct ContentView: View {
                 isEditing = false // Exit editing on background
             }
         }
-        .preferredColorScheme(preferredColorScheme)
+        .preferredColorScheme(isDarkMode ? .dark : .light)
         .sheet(isPresented: $showSettings) {
             SettingsSheet()
-                .preferredColorScheme(preferredColorScheme)
+                .preferredColorScheme(isDarkMode ? .dark : .light)
         }
     }
     
     // Main wallet layout view
     private var mainWalletView: some View {
         ZStack {
+            // Dark premium background
+            Color(hex: "0A0A0C")
+                .ignoresSafeArea()
+            
+            // Glowing ambient lights
+            GeometryReader { geo in
+                ZStack {
+                    Circle()
+                        .fill(Color(hex: "6D28D9").opacity(0.12))
+                        .frame(width: 320, height: 320)
+                        .blur(radius: 80)
+                        .offset(x: -80, y: 120)
+                    
+                    Circle()
+                        .fill(Color(hex: "028090").opacity(0.1))
+                        .frame(width: 380, height: 380)
+                        .blur(radius: 90)
+                        .offset(x: geo.size.width - 200, y: geo.size.height - 350)
+                }
+            }
+            .ignoresSafeArea()
+            
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 28) {
                     // Centered Header Area
@@ -603,7 +497,7 @@ struct ContentView: View {
                             .foregroundColor(.white)
                         
                         HStack {
-                            // Left buttons: Settings & Edit
+                            // Left: Settings & Edit Buttons side-by-side
                             HStack(spacing: 10) {
                                 Button(action: {
                                     triggerHaptic(style: .medium)
@@ -635,7 +529,7 @@ struct ContentView: View {
                             
                             Spacer()
                             
-                            // Right button: Add
+                            // Right: Add Button styled in Liquid Glass Circle shape
                             Button(action: {
                                 triggerHaptic(style: .medium)
                                 activeSheet = SheetConfig(mode: .add, card: nil)
@@ -749,7 +643,7 @@ struct ContentView: View {
         }
         .sheet(item: $activeSheet) { config in
             CardEditSheet(store: store, motionManager: motionManager, mode: config.mode, cardToEdit: config.card)
-                .preferredColorScheme(preferredColorScheme)
+                .preferredColorScheme(isDarkMode ? .dark : .light)
         }
         .onChange(of: isEditing) { newValue in
             if newValue {
@@ -875,13 +769,12 @@ struct LockedView: View {
     
     var body: some View {
         ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
+            Color(hex: "0A0A0C")
                 .ignoresSafeArea()
             
             // Background ambient glow
             Circle()
-                .fill(Color(hex: "6D28D9").opacity(0.08))
+                .fill(Color(hex: "6D28D9").opacity(0.12))
                 .frame(width: 300, height: 300)
                 .blur(radius: 80)
             
@@ -956,9 +849,6 @@ struct CardView: View {
     @ObservedObject var motionManager: MotionManager
     var onTap: (() -> Void)? = nil
     
-    @AppStorage("app_theme_style") private var themeStyle: AppThemeStyle = .modernGradient
-    @Environment(\.colorScheme) var colorScheme
-    
     // Tap Animation states
     @State private var isBouncing = false
     @State private var showFlash = false
@@ -976,73 +866,6 @@ struct CardView: View {
     }
     
     var body: some View {
-        Group {
-            if themeStyle == .liquidGlass {
-                liquidGlassCardBody
-            } else {
-                modernCardBody
-            }
-        }
-        .scaleEffect(isBouncing ? 1.045 : 1.0)
-        .onTapGesture {
-            if !isPreview, let onTap = onTap {
-                // Interactive bounce/jump animation
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.42, blendDuration: 0)) {
-                    isBouncing = true
-                }
-                
-                // Reset flash and sheen silently
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    showFlash = false
-                    sheenOffsetMultiplier = -0.6
-                }
-                
-                // Trigger border glow
-                withAnimation(.linear(duration: 0.52)) {
-                    showFlash = true
-                }
-                
-                // Trigger diagonal sweep sheen (left-to-right)
-                withAnimation(.linear(duration: 0.52)) {
-                    sheenOffsetMultiplier = 1.35
-                }
-                
-                // Bounce back to normal scale
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    withAnimation(.spring(response: 0.22, dampingFraction: 0.42)) {
-                        isBouncing = false
-                    }
-                }
-                
-                // Reset border flash and smoothly return sheen from left
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.53) {
-                    // Turn off border gold glow
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showFlash = false
-                    }
-                    
-                    // Move sheen to far left instantly
-                    var resetTrans = Transaction()
-                    resetTrans.disablesAnimations = true
-                    withTransaction(resetTrans) {
-                        sheenOffsetMultiplier = -1.2
-                    }
-                    
-                    // Animate sheen sliding back to resting position from the left
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        sheenOffsetMultiplier = -0.6
-                    }
-                }
-                
-                onTap()
-            }
-        }
-    }
-    
-    // Modern gradient-only theme
-    private var modernCardBody: some View {
         ZStack {
             // Premium Gradient Theme Background
             LinearGradient(
@@ -1058,8 +881,10 @@ struct CardView: View {
                 endPoint: .bottomTrailing
             )
             
-            // Card Decorations
-            CardDecorations()
+            // Card Decorations with gyroscopic parallax
+            CardDecorations(offset: CGSize(width: -motionManager.roll * 12, height: -motionManager.pitch * 12))
+                .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.roll)
+                .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.pitch)
             
             // Diagonal sweep sheen flash effect
             GeometryReader { geo in
@@ -1137,7 +962,7 @@ struct CardView: View {
                     .tracking(2.0)
                     .shadow(color: Color.black.opacity(0.15), radius: 2, x: 0, y: 1)
                 
-                // Cardholder Name
+                // Cardholder Name: Displayed elegantly between Card Number and Expiry/CVV (only if provided)
                 if let holder = card.holderName, !holder.trimmingCharacters(in: .whitespaces).isEmpty {
                     Spacer()
                     Text(holder.uppercased())
@@ -1193,242 +1018,6 @@ struct CardView: View {
                 .shadow(color: Color(hex: "FBBF24").opacity(showFlash ? 0.85 : 0), radius: showFlash ? 10 : 0)
         )
         .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 6)
-    }
-    
-    // iOS 26 Liquid Glass Card Body (featuring multi-layers and CoreMotion tracking)
-    private var liquidGlassCardBody: some View {
-        ZStack {
-            // KATMAN 1 — Cam Gövde + Theme Color background tint
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .background(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: cardColors.map { $0.opacity(0.18) },
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(Color.white.opacity(0.04))
-                )
-            
-            // Background decorations with gyroscopic parallax
-            CardDecorations(offset: CGSize(width: -motionManager.roll * 12, height: -motionManager.pitch * 12))
-                .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.roll)
-                .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.pitch)
-            
-            // KATMAN 2 — Üst kenar parıltısı (speküler highlight)
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(colorScheme == .dark ? 0.65 : 0.55),
-                            Color.white.opacity(colorScheme == .dark ? 0.06 : 0.05),
-                            Color.clear,
-                            Color.white.opacity(colorScheme == .dark ? 0.14 : 0.12)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.2
-                )
-            
-            // KATMAN 3 — İç üst yüzey parlaklığı
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.12), Color.clear],
-                        startPoint: .top,
-                        endPoint: UnitPoint(x: 0.5, y: 0.45)
-                    )
-                )
-            
-            // KATMAN 4 — Alt kenar derin gölge (derinlik hissi)
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color.clear, Color.black.opacity(0.18)],
-                        startPoint: UnitPoint(x: 0.5, y: 0.6),
-                        endPoint: .bottom
-                    )
-                )
-            
-            // Diagonal sweep sheen flash effect (sweep right on tap)
-            GeometryReader { geo in
-                Color.clear
-                    .overlay(
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.clear,
-                                        Color(hex: "FBBF24").opacity(0.45),
-                                        Color.white.opacity(0.2),
-                                        Color(hex: "FBBF24").opacity(0.45),
-                                        Color.clear
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: geo.size.width * 0.45)
-                            .rotationEffect(.degrees(25))
-                            .offset(x: geo.size.width * sheenOffsetMultiplier)
-                    )
-            }
-            .clipped()
-            .allowsHitTesting(false)
-            
-            // KATMAN 5 — Kart içeriği
-            VStack(alignment: .leading, spacing: 0) {
-                // Card Name & Chip
-                HStack(alignment: .center) {
-                    FrostedLabel(
-                        cornerRadius: 10,
-                        horizontalPadding: 10,
-                        verticalPadding: 5,
-                        material: .ultraThinMaterial,
-                        borderColor: Color.white.opacity(colorScheme == .dark ? 0.30 : 0.25),
-                        borderWidth: 0.5
-                    ) {
-                        Text(card.name.uppercased())
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.9))
-                            .tracking(1.5)
-                    }
-                    
-                    Spacer()
-                    
-                    // Golden Chip Mockup
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color(hex: "FFE082"), Color(hex: "FFB300")],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 38, height: 28)
-                        .overlay(
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 5)
-                                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                                
-                                Path { path in
-                                    path.move(to: CGPoint(x: 12, y: 0))
-                                    path.addLine(to: CGPoint(x: 12, y: 28))
-                                    path.move(to: CGPoint(x: 26, y: 0))
-                                    path.addLine(to: CGPoint(x: 26, y: 28))
-                                    path.move(to: CGPoint(x: 0, y: 14))
-                                    path.addLine(to: CGPoint(x: 38, y: 14))
-                                }
-                                .stroke(Color.black.opacity(0.12), lineWidth: 1)
-                            }
-                        )
-                }
-                
-                Spacer()
-                
-                // Formatted Card Number (Frosted Label with larger padding and border)
-                FrostedLabel(
-                    cornerRadius: 14,
-                    horizontalPadding: 14,
-                    verticalPadding: 8,
-                    material: .thinMaterial,
-                    borderColor: Color.white.opacity(colorScheme == .dark ? 0.36 : 0.30),
-                    borderWidth: 0.8
-                ) {
-                    Text(formattedCardNumber(card.number))
-                        .font(.system(size: 19, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                        .tracking(1.8)
-                }
-                
-                // Cardholder Name (if present)
-                if let holder = card.holderName, !holder.trimmingCharacters(in: .whitespaces).isEmpty {
-                    Spacer()
-                    FrostedLabel(
-                        cornerRadius: 10,
-                        horizontalPadding: 10,
-                        verticalPadding: 5,
-                        material: .ultraThinMaterial,
-                        borderColor: Color.white.opacity(colorScheme == .dark ? 0.30 : 0.25),
-                        borderWidth: 0.5
-                    ) {
-                        Text(holder.uppercased())
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.85))
-                            .tracking(1.2)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                }
-                
-                Spacer()
-                
-                // Expiry & CVV Row
-                HStack(alignment: .bottom) {
-                    FrostedLabel(
-                        cornerRadius: 10,
-                        horizontalPadding: 10,
-                        verticalPadding: 5,
-                        material: .ultraThinMaterial,
-                        borderColor: Color.white.opacity(colorScheme == .dark ? 0.30 : 0.25),
-                        borderWidth: 0.5
-                    ) {
-                        HStack(spacing: 16) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("SON KULLANMA")
-                                    .font(.system(size: 7, weight: .bold))
-                                    .foregroundColor(.white.opacity(0.5))
-                                    .tracking(0.8)
-                                Text(card.expiry.isEmpty ? "MM/YY" : card.expiry)
-                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                    .foregroundColor(.white.opacity(0.95))
-                            }
-                            
-                            // Vertical mini-divider
-                            Rectangle()
-                                .fill(Color.white.opacity(0.15))
-                                .frame(width: 1, height: 20)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("CVV")
-                                    .font(.system(size: 7, weight: .bold))
-                                    .foregroundColor(.white.opacity(0.5))
-                                    .tracking(0.8)
-                                Text(card.cvv.isEmpty ? "•••" : (maskNumber ? "•••" : card.cvv))
-                                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                    .foregroundColor(.white.opacity(0.95))
-                            }
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Card Provider Logo
-                    CardProviderLogo(provider: card.provider)
-                        .padding(.bottom, 4)
-                        .padding(.trailing, 4)
-                }
-            }
-            .padding(20)
-        }
-        .frame(height: 195)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(showFlash ? Color(hex: "FBBF24") : Color.clear, lineWidth: showFlash ? 2.5 : 0)
-                .shadow(color: Color(hex: "FBBF24").opacity(showFlash ? 0.85 : 0), radius: showFlash ? 10 : 0)
-        )
-        .shadow(color: Color.black.opacity(0.35), radius: 24, x: 0, y: 12)
-        .shadow(color: Color.black.opacity(0.15), radius: 6, x: 0, y: 2)
         .rotation3DEffect(
             .degrees(motionManager.pitch * maxTilt),
             axis: (x: 1, y: 0, z: 0),
@@ -1441,6 +1030,62 @@ struct CardView: View {
         )
         .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.pitch)
         .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.65), value: motionManager.roll)
+        .scaleEffect(isBouncing ? 1.045 : 1.0)
+        .onTapGesture {
+            if !isPreview, let onTap = onTap {
+                // Interactive bounce/jump animation
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.42, blendDuration: 0)) {
+                    isBouncing = true
+                }
+                
+                // Reset flash and sheen silently
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    showFlash = false
+                    sheenOffsetMultiplier = -0.6
+                }
+                
+                // Trigger border glow
+                withAnimation(.linear(duration: 0.52)) {
+                    showFlash = true
+                }
+                
+                // Trigger diagonal sweep sheen (left-to-right)
+                withAnimation(.linear(duration: 0.52)) {
+                    sheenOffsetMultiplier = 1.35
+                }
+                
+                // Bounce back to normal scale
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.42)) {
+                        isBouncing = false
+                    }
+                }
+                
+                // Reset border flash and smoothly return sheen from left
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.53) {
+                    // Turn off border gold glow
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showFlash = false
+                    }
+                    
+                    // Move sheen to far left instantly
+                    var resetTrans = Transaction()
+                    resetTrans.disablesAnimations = true
+                    withTransaction(resetTrans) {
+                        sheenOffsetMultiplier = -1.2
+                    }
+                    
+                    // Animate sheen sliding back to resting position from the left
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        sheenOffsetMultiplier = -0.6
+                    }
+                }
+                
+                onTap()
+            }
+        }
     }
     
     private func formattedCardNumber(_ number: String) -> String {
