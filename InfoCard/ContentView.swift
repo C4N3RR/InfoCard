@@ -506,6 +506,9 @@ struct ContentView: View {
     // Sheet presentation (single identifiable item prevents race conditions)
     @State private var activeSheet: SheetConfig? = nil
     
+    // Toggle state for masking/revealing sensitive card details (last 4 digits and CVV)
+    @State private var showCardDetails = false
+    
     // Toast notification
     @State private var showToast = false
     @State private var toastMessage = ""
@@ -612,18 +615,34 @@ struct ContentView: View {
                             
                             Spacer()
                             
-                            // Right: Add Button styled in Liquid Glass Circle shape
-                            Button(action: {
-                                triggerHaptic(style: .medium)
-                                activeSheet = SheetConfig(mode: .add, card: nil)
-                            }) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 44)
+                            // Right: Eye (Show/Hide) and Add Button side-by-side
+                            HStack(spacing: 10) {
+                                Button(action: {
+                                    triggerHaptic(style: .medium)
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        showCardDetails.toggle()
+                                    }
+                                }) {
+                                    Image(systemName: showCardDetails ? "eye.fill" : "eye.slash.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .frame(width: 44, height: 44)
+                                }
+                                .buttonStyle(GlassButtonStyle(cornerRadius: 22, isCircle: true))
+                                .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 2)
+                                
+                                Button(action: {
+                                    triggerHaptic(style: .medium)
+                                    activeSheet = SheetConfig(mode: .add, card: nil)
+                                }) {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .frame(width: 44, height: 44)
+                                }
+                                .buttonStyle(GlassButtonStyle(cornerRadius: 22, isCircle: true))
+                                .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 2)
                             }
-                            .buttonStyle(GlassButtonStyle(cornerRadius: 22, isCircle: true))
-                            .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 2)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -663,7 +682,7 @@ struct ContentView: View {
                     } else {
                         LazyVStack(spacing: 20) {
                             ForEach(store.cards) { card in
-                                CardView(card: card, maskNumber: false, motionManager: motionManager) {
+                                CardView(card: card, maskNumber: !showCardDetails, motionManager: motionManager) {
                                     if !isEditing {
                                         copyToClipboard(card: card)
                                     }
@@ -1079,7 +1098,7 @@ struct CardView: View {
                             .font(.system(size: 8, weight: .bold))
                             .foregroundColor(.white.opacity(0.5))
                             .tracking(1.0)
-                        Text(card.cvv.isEmpty ? "•••" : (maskNumber ? "•••" : card.cvv))
+                        Text(card.cvv.isEmpty ? "***" : (maskNumber ? "***" : card.cvv))
                             .font(.system(size: 14, weight: .bold, design: .monospaced))
                             .foregroundColor(.white.opacity(0.95))
                     }
@@ -1179,7 +1198,7 @@ struct CardView: View {
         for i in 0..<displayCount {
             if i < cleaned.count {
                 let index = cleaned.index(cleaned.startIndex, offsetBy: i)
-                if maskNumber && i >= 8 {
+                if maskNumber && i >= 12 {
                     formatted.append("*")
                 } else {
                     formatted.append(cleaned[index])
